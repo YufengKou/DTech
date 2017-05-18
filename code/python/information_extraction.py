@@ -6,6 +6,8 @@ Created on Wed May 17 15:33:56 2017
 """
 import nltk
 
+
+# parse document string and return parsed pos tags
 def parse_document(document):
    sentences = nltk.sent_tokenize(document)
    sentences = [nltk.word_tokenize(sent) for sent in sentences]
@@ -13,6 +15,7 @@ def parse_document(document):
    
    return sentences
 
+# find noun phrases by chunking the pos tags
 def chunk_noun_phrase(sentence, grammar, filters):
    list_subtrees = []   
    cp = nltk.RegexpParser(grammar)
@@ -44,7 +47,7 @@ power.
     for s in sentences:
         print(s)
         list_subtrees = chunk_noun_phrase(s, grammar, 'NP')
-
+        
 
    
 if __name__ == "__main__":
