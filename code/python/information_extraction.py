@@ -7,7 +7,8 @@ Created on Wed May 17 15:33:56 2017
 import nltk
 import re
 import pandas as pd
-
+#import csv
+import unicodecsv as csv
 
 def get_keyword_set():
     keywords = "system, systems, equipment, function, functions, device, devices, channel, channels, component, components, instrument, instruments," + \
@@ -80,8 +81,6 @@ def find_noun_phrases(input_file):
     df = pd.DataFrame({"Noun_Phrase": np_list, "Orignal_String": org_list})
     return df
 
-    df.to_csv(output_file, index=False)
-
 
 def modify_string(x):
     chars_to_remove = ['.', '!', '?', '"', '“', '•']
@@ -95,6 +94,10 @@ def filter_condition(x):
     if len(x.split(" ")) == 1 and x.lower() in get_unwanted_entity_set():
         return False
     if  len(x.split(" ")) == 1 and x.islower():
+        return False
+    
+    pattern = re.compile('^.*(document|documents|chapter|section|criteria|sections|chapters|revision|reference)$')
+    if  pattern.match(x.lower()):
         return False
     
     return True
@@ -111,6 +114,21 @@ def test(input_file, output_file):
     df = df[df["Orignal_String"].apply(filter_condition)]
     df.to_csv(output_file, index=False)
     print("len after: {}".format(len(df)))
+    
+    comp_dict = set()
+    for i in range(len(df)):
+        comp_dict.add(df.iloc[i]["Orignal_String"])
+    
+    df = pd.DataFrame({"components": list(comp_dict)})
+    print("len of df: {}".format(len(df)))
+    df.to_csv('chapter_7_entities.csv', encoding='utf-8', index=False)
+   
+    
+    
+#############################################################
+## 
+#############################################################
+
     
 if __name__ == "__main__":
     input_file = "../../documents/chapter_7.txt"
