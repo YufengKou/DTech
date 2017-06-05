@@ -9,6 +9,9 @@ import re
 import pandas as pd
 #import csv
 import unicodecsv as csv
+import codecs
+import GraphDB
+import TripletGenerator
 
 def get_keyword_set():
     keywords = "system, systems, equipment, function, functions, device, devices, channel, channels, component, components, instrument, instruments," + \
@@ -19,7 +22,9 @@ def get_keyword_set():
     return TermSet
 
 def get_unwanted_entity_set():
-    keywords = ["system", "systems", "information", "section", "chapter", "equipment", "design", "standard", "figure", "reference", "sections"]
+    keywords = ["system", "systems", "information", "section", "chapter", "equipment", "design", 
+                "standard", "figure", "reference", "sections", "they", "it", "which", "that", "those", 
+                "examples", "details"]
     return set(keywords)
 
 # parse document string and return parsed pos tags
@@ -55,11 +60,27 @@ def conert_tags_to_original_string(tag_str):
     s = s[:-1]
     return " ".join(str_list)
 
+def parse_to_sentences(text):
+    paragraphs = re.split('\r\r|\n\n|\r\n\r\n', text)    
+    #paragraphs = text.split(["\r\n\r\n", "\n\n"])
+    sentences = []
+    for p in paragraphs:
+        sentences = sentences + nltk.sent_tokenize(p)
+     
+    sentences = [s.strip().replace('\n', '').replace('\r', '') for s in sentences]
+    print("before filtering short sentences: {}".format(len(sentences))) 
+    sentences = [s for s in sentences if len(s) > 2]    
+    print("after filtering short sentences: {}".format(len(sentences))) 
+    return sentences
+
 ##  find all noun phrases
 def find_noun_phrases(input_file):
     text = ""
-    with open(input_file, 'r', encoding="utf8") as myfile:
-        text=myfile.read().replace('\n', '')    
+    myfile = codecs.open(input_file, "r", "utf-8")
+    text = myfile.read()
+    # The commented code is only for python 3
+    #with open(input_file, 'r', encoding="utf8") as myfile:
+    #    text=myfile.read().replace('\n', '')    
     print(text)
     #text = "The main control room is implemented as a set of compact operator consoles featuring color graphic displays and soft control input devices."
     sentences = parse_document(text)
@@ -84,7 +105,9 @@ def find_noun_phrases(input_file):
 
 def modify_string(x):
     chars_to_remove = ['.', '!', '?', '"', '“', '•']
-    x = x.translate(''.join(chars_to_remove))
+    #x = x.translate(''.join(chars_to_remove))  # python 3 method
+    for c in chars_to_remove:    
+        x = x.replace(c, '')  
     return x
 
 def filter_condition(x):
@@ -96,7 +119,7 @@ def filter_condition(x):
     if  len(x.split(" ")) == 1 and x.islower():
         return False
     
-    pattern = re.compile('^.*(document|documents|chapter|section|criteria|sections|chapters|revision|reference)$')
+    pattern = re.compile('^.*(document|documents|chapter|section|criteria|sections|chapters|revision|reference|example)$')
     if  pattern.match(x.lower()):
         return False
     
@@ -107,6 +130,41 @@ def filter_condition(x):
 def post_filter(np_list, org_list):
     new_o_list = [modify_string(x) for x in org_list]
     return np_list, new_o_list        
+
+def populate_graph_db(entity_dict, triplets):
+    entities = list(entity_dict)
+    relList = []    
+    for t in triplets:
+        if (t[0] in entity_dict) and (t[2] in entity_dict):
+            print "subject: {},   rel: {},  object: {}".format(t[0], t[1], t[2]) 
+            relList.append(t)
+            
+    db = GraphDB.GraphDB("http://localhost:7474", username="neo4j", password="Neo4j3342")
+    db.create_entities("Entity", entities)
+    db.create_relations("Entity", relList)
+        
+def get_relations_from_document(txt_file):
+    myfile = codecs.open(input_file, "r", "utf-8")
+    text = myfile.read()
+    # The commented code is only for python 3
+    #with open(input_file, 'r', encoding="utf8") as myfile:
+    #    text=myfile.read().replace('\n', '')    
+    #text = "The main control room is implemented as a set of compact operator consoles featuring color graphic displays and soft control input devices."
+    tg = TripletGenerator.TripletGenerator()
+    #text = text.replace("\r", "").replace("\n", "")
+    #text = ' '.join(text.split(" "))
+    sentences = parse_to_sentences(text)
+#    text = "7.  Instrumentation and Controls CHAPTER 7 INSTRUMENTATION AND CONTROLS 7.1 Introduction AP1000 Design Control Document The instrumentation and control systems presented in this chapter provide protection against unsafe reactor operation during steady-state and transient power operations. They initiate selected protective functions to mitigate the consequences of design basis events. This chapter relates the functional performance requirements, design bases, system descriptions, and safety evaluations for those systems."
+    #text = text.encode('ascii', errors='backslashreplace')
+
+    triplets = []
+    for s in sentences:
+        print(s)
+        t = s.encode('ascii', errors='backslashreplace')
+        triplets = triplets + tg.parse_sentence(t)
+        
+    return triplets       
+
 
 def test(input_file, output_file):
     df = find_noun_phrases(input_file)
@@ -122,15 +180,38 @@ def test(input_file, output_file):
     df = pd.DataFrame({"components": list(comp_dict)})
     print("len of df: {}".format(len(df)))
     df.to_csv('chapter_7_entities.csv', encoding='utf-8', index=False)
-   
     
+    triplets = get_relations_from_document(input_file)
+    #print(triplets)
+    populate_graph_db(comp_dict, triplets)
+
     
 #############################################################
 ## 
 #############################################################
+def test_sentence_split():
+    text = '''Introduction 
 
-    
-if __name__ == "__main__":
-    input_file = "../../documents/chapter_7.txt"
+AP1000 Design Control Document 
+
+The instrumentation and control systems presented in this chapter provide protection against 
+unsafe reactor operation during steady-state and transient power operations. They initiate selected 
+protective functions to mitigate the consequences of design basis events. This chapter relates the 
+functional performance requirements, design bases, system descriptions, and safety evaluations for 
+those systems. The safety evaluations show that the systems can be designed and built to conform 
+to the applicable criteria, codes, and standards concerned with the safe generation of nuclear 
+power. '''
+    print text
+    sentences = parse_to_sentences(text)
+    print sentences
+    #output_file = input_file + "_noun_phrase.csv"
+    #test(input_file, output_file)
+
+
+if __name__ == '__main__': 
+#    test_sentence_split()
+    input_file = '../../documents/chapter_7.txt'    
     output_file = input_file + "_noun_phrase.csv"
     test(input_file, output_file)
+       
+    
