@@ -25,6 +25,9 @@ class TripletGenerator:
             for ie in s['openie']:
                 t = (ie['subject'], ie['relation'], ie['object'])
                 #print(t)
+                if len(t[1].split(' ')) == 1 and not t[1].isalnum() and not '-' in t[1]:
+                    print("Not a alphabetic or numberic string: {}".format(t[1]))
+                    continue
                 tList.append(t)
 
         return tList
@@ -37,10 +40,17 @@ class TripletGenerator:
 
         return triplets
     
+
+def test_dedup():
+    tg = TripletGenerator()
+    deduped = tg._dedup_triplets([(u'applicable changes', u'are incorporated into', u'DCD'), (u'applicable changes', u'are incorporated into', u'DCD')])
+    print(deduped)
+    
 if __name__ == '__main__': 
     csv_file = "test_triplet.csv"
     text = "I love the dog and the cat. fingers are a part of a hand."
     tg = TripletGenerator()
     triplets = tg.parse_sentence(text)
-    print(triplets)         
+    print(triplets)
+    test_dedup()         
         

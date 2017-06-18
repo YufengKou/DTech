@@ -8,7 +8,7 @@ import nltk
 import re
 import pandas as pd
 #import csv
-import unicodecsv as csv
+#import unicodecsv as csv
 import codecs
 import GraphDB
 import TripletGenerator
@@ -22,10 +22,13 @@ def get_keyword_set():
     return TermSet
 
 def get_unwanted_entity_set():
-    keywords = ["system", "systems", "information", "section", "chapter", "equipment", "design", 
-                "standard", "figure", "reference", "sections", "they", "it", "which", "that", "those", 
-                "examples", "details"]
-    return set(keywords)
+#    keywords = ["system", "systems", "information", "section", "chapter", "equipment", "design", 
+#                "standard", "figure", "reference", "sections", "they", "it", "which", "that", "those", 
+#                "examples", "details"]
+    text_file = open("unwanted_entities.txt", "r")
+    lines = text_file.read().split('\n')
+    text_file.close()
+    return set(lines)
 
 # parse document string and return parsed pos tags
 def parse_document(document):
@@ -81,7 +84,7 @@ def find_noun_phrases(input_file):
     # The commented code is only for python 3
     #with open(input_file, 'r', encoding="utf8") as myfile:
     #    text=myfile.read().replace('\n', '')    
-    print(text)
+    #print(text)
     #text = "The main control room is implemented as a set of compact operator consoles featuring color graphic displays and soft control input devices."
     sentences = parse_document(text)
     print("{} sentences are obtained".format(len(sentences)))
@@ -94,7 +97,7 @@ def find_noun_phrases(input_file):
               """
     np_list = []
     for s in sentences:
-        #print(s)
+        print(s)
         np_list = np_list + chunk_noun_phrase(s, grammar, ['NP', 'VP'])
     
     org_list = [conert_tags_to_original_string(str(x)) for x in np_list]    
@@ -136,7 +139,7 @@ def populate_graph_db(entity_dict, triplets):
     relList = []    
     for t in triplets:
         if (t[0] in entity_dict) and (t[2] in entity_dict):
-            print "subject: {},   rel: {},  object: {}".format(t[0], t[1], t[2]) 
+            print("subject: {},   rel: {},  object: {}".format(t[0], t[1], t[2]) )
             relList.append(t)
             
     db = GraphDB.GraphDB("http://localhost:7474", username="neo4j", password="Neo4j3342")
@@ -145,11 +148,18 @@ def populate_graph_db(entity_dict, triplets):
 #    except Exception:
 #        print("cannot find the label: {}".format("Entity"))
 #        pass  # or you could 
-    db.create_entities("Entity", entities)
-    print(relList[:5])
-    
+    db.create_entities("Entity", entities)    
     db.create_relations("Entity", relList)
+
+def dedup_triplets(triplets):
+    dict_triplets = {}
+    for t in triplets:
+        key = t[0] + ":" + t[1] + ":" + t[2]
+        dict_triplets[key] = t
+    print("before dedup, len={}, after dedup len={}".format(len(triplets), len(dict_triplets)))
+    return dict_triplets.values()
         
+ 
 def get_relations_from_document(txt_file):
     myfile = codecs.open(input_file, "r", "utf-8")
     text = myfile.read()
@@ -166,11 +176,11 @@ def get_relations_from_document(txt_file):
 
     triplets = []
     for s in sentences:
-        print(s)
+        #print(s)
         t = s.encode('ascii', errors='backslashreplace')
         triplets = triplets + tg.parse_sentence(t)
-        
-    return triplets       
+       
+    return dedup_triplets(triplets)       
 
 
 def entity_relation_extraction(input_file, output_file):
@@ -189,7 +199,7 @@ def entity_relation_extraction(input_file, output_file):
     df.to_csv('chapter_7_entities.csv', encoding='utf-8', index=False)
     
     triplets = get_relations_from_document(input_file)
-    #print(triplets)
+    print(triplets)
     populate_graph_db(comp_dict, triplets)
 
     
@@ -208,15 +218,16 @@ functional performance requirements, design bases, system descriptions, and safe
 those systems. The safety evaluations show that the systems can be designed and built to conform 
 to the applicable criteria, codes, and standards concerned with the safe generation of nuclear 
 power. '''
-    print text
+    print(text)
     sentences = parse_to_sentences(text)
-    print sentences
+    print(sentences)
     #output_file = input_file + "_noun_phrase.csv"
     #test(input_file, output_file)
 
 
 if __name__ == '__main__': 
-#    test_sentence_split()
+#    get_unwanted_entity_set()
+    #    test_sentence_split()
     input_file = '../../documents/chapter_7.txt'    
     output_file = input_file + "_noun_phrase.csv"
     entity_relation_extraction(input_file, output_file)
