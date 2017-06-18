@@ -1,0 +1,6 @@
+(1) Define relations:   data flow, includes, part of, ...
+(2) Define rules/dictionaries
+(3) Integration/visualization
+(4) find another text chapter. 
+(5) evaluation
+

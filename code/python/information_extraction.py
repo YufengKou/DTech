@@ -140,7 +140,14 @@ def populate_graph_db(entity_dict, triplets):
             relList.append(t)
             
     db = GraphDB.GraphDB("http://localhost:7474", username="neo4j", password="Neo4j3342")
+#    try:
+#        db.remove_all_nodes_with_a_label("Entity")
+#    except Exception:
+#        print("cannot find the label: {}".format("Entity"))
+#        pass  # or you could 
     db.create_entities("Entity", entities)
+    print(relList[:5])
+    
     db.create_relations("Entity", relList)
         
 def get_relations_from_document(txt_file):
@@ -166,7 +173,7 @@ def get_relations_from_document(txt_file):
     return triplets       
 
 
-def test(input_file, output_file):
+def entity_relation_extraction(input_file, output_file):
     df = find_noun_phrases(input_file)
     print("len before: {}".format(len(df)))
     df = df[df["Orignal_String"].apply(filter_condition)]
@@ -212,6 +219,6 @@ if __name__ == '__main__':
 #    test_sentence_split()
     input_file = '../../documents/chapter_7.txt'    
     output_file = input_file + "_noun_phrase.csv"
-    test(input_file, output_file)
+    entity_relation_extraction(input_file, output_file)
        
     
