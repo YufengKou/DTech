@@ -8,6 +8,8 @@ Created on Tue May 30 07:51:48 2017
 # (1) 'MATCH (s:EntityTest)-[r]->(o:EntityTest) RETURN s, type(r), o'
 # (2) 'MATCH (s:Entity)-[r]->(o:Entity) RETURN s, type(r), o'
 # (3) MATCH (n:Entity) DETACH DELETE n
+# (4) MATCH (s:Entity)-[r]->(o:Entity) WHERE type(r) = 'part_of' RETURN s, type(r), o
+# (5) MATCH (s:Entity)-[r]->(o:Entity) WHERE type(r) =~ '.*_.*' RETURN s, type(r), o
 """
 
 from neo4jrestclient.client import GraphDatabase
@@ -50,6 +52,26 @@ class GraphDB:
                 continue
             rel = r[1]
             subEntity[0].relationships.create(rel, objEntity[0])
+            
+    def create_group_relations(self, eType, rList):
+        print("creating grouped relations.".format(self.db.labels) )
+        entity = self.db.labels.get(eType)
+        for r in rList:
+            subEntity = entity.get(name=r[0])
+            objEntity = entity.get(name=r[2])
+            if r[4] is False:
+                subEntity = entity.get(name=r[2])
+                objEntity = entity.get(name=r[0])
+            
+            if (subEntity is None) or len(subEntity) == 0:
+                print("There is no such subject entity: {}".format(r[0]))
+                continue
+            
+            if (objEntity is None) or len(objEntity) == 0:
+                print("There is no such object entity: {}".format(r[2]))
+                continue
+            rel = r[3]
+            subEntity[0].relationships.create(rel, objEntity[0], orig_rel=r[1])                
             
     def remove_all_nodes_with_a_label(self, label):
         q = 'MATCH (n:' + label +') DETACH DELETE n'

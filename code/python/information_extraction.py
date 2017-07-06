@@ -4,7 +4,8 @@ Created on Wed May 17 15:33:56 2017
 
 @author: ykou
 """
-import nltk
+import nltk    
+from nltk.stem import WordNetLemmatizer
 import re
 import pandas as pd
 #import csv
@@ -143,13 +144,9 @@ def populate_graph_db(entity_dict, triplets):
             relList.append(t)
             
     db = GraphDB.GraphDB("http://localhost:7474", username="neo4j", password="Neo4j3342")
-#    try:
-#        db.remove_all_nodes_with_a_label("Entity")
-#    except Exception:
-#        print("cannot find the label: {}".format("Entity"))
-#        pass  # or you could 
     db.create_entities("Entity", entities)    
-    db.create_relations("Entity", relList)
+    #db.create_relations("Entity", relList)
+    db.create_group_relations("Entity", relList)
 
 def dedup_triplets(triplets):
     dict_triplets = {}
@@ -158,10 +155,52 @@ def dedup_triplets(triplets):
         dict_triplets[key] = t
     print("before dedup, len={}, after dedup len={}".format(len(triplets), len(dict_triplets)))
     return dict_triplets.values()
-        
- 
+
+def convert_group_relation(verb, entity_1, entity_2):
+    words = verb.split()
+    lemmatizer = WordNetLemmatizer()
+    if len(words) == 1 :
+        lemma = lemmatizer.lemmatize(words[0], 'v')
+        if lemma in ["include", "have", "contain"]:
+            return (entity_1, verb, entity_2, "part_of", True)  #  "True" means in order, "False" means inverse order
+        elif lemma in ["feed", "transmit"]:
+            return (entity_1, verb, entity_2, "data_flow", True)
+        elif lemma in ["receive"]:
+            return (entity_1,  verb, entity_2, "data_flow", False)
+        elif lemma in ["process", "perform", "maintain", "control", "provide", "monitor", "optimize", "reject"]:
+            return (entity_1, verb, entity_2, "process_rel", True)
+        elif lemma in ["be"]:
+            return (entity_1, verb, entity_2, "definition_rel", True)            
+        elif lemma in ["prevent"]:
+            return (entity_1, verb, entity_2, "prevent_rel", True)           
+    else: 
+        if ("composed of" in verb) or \
+           ("included in" in verb) or \
+           ("incorporated into" in verb) :
+            return (entity_1, verb, entity_2, "part_of", False)
+        elif "consist" in verb and "of" in verb : 
+            return (entity_1, verb, entity_2, "part_of", True)
+        elif "feed" in verb or \
+             "transmit" in verb: 
+            return (entity_1, verb, entity_2, "data_flow", True)
+            
+    return (entity_1, verb, entity_2, "other_rel", True)
+            
+                        
+def group_relations(triplets):
+    ret_list = []
+    for t in triplets:
+        group_rel = convert_group_relation(t[1], t[0], t[2])
+        ret_list.append(group_rel)        
+    return ret_list
+
+def test_group_relations():
+    triplets = [("CHN", "is", "China"),("China", "includes", "Beijing"), ("Cable", "transmit", "signal") ]
+    print(group_relations(triplets))
+
+    
 def get_relations_from_document(txt_file):
-    myfile = codecs.open(input_file, "r", "utf-8")
+    myfile = codecs.open(txt_file, "r", "utf-8")
     text = myfile.read()
     # The commented code is only for python 3
     #with open(input_file, 'r', encoding="utf8") as myfile:
@@ -179,8 +218,12 @@ def get_relations_from_document(txt_file):
         #print(s)
         t = s.encode('ascii', errors='backslashreplace')
         triplets = triplets + tg.parse_sentence(t)
-       
-    return dedup_triplets(triplets)       
+    
+    deduped_triplets = dedup_triplets(triplets)
+    # create grouped relations, such as "part_of", "data_flow", "..."
+    grouped_relations = group_relations(deduped_triplets)
+    
+    return grouped_relations       
 
 
 def entity_relation_extraction(input_file, output_file):
@@ -224,12 +267,9 @@ power. '''
     #output_file = input_file + "_noun_phrase.csv"
     #test(input_file, output_file)
 
-
 if __name__ == '__main__': 
 #    get_unwanted_entity_set()
     #    test_sentence_split()
     input_file = '../../documents/chapter_7.txt'    
     output_file = input_file + "_noun_phrase.csv"
     entity_relation_extraction(input_file, output_file)
-       
-    
